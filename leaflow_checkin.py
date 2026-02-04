@@ -33,8 +33,8 @@ class LeaflowAutoCheckin:
     def __init__(self, email, password):
         self.email = email
         self.password = password
-        self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
-        self.telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
+        self.telegram_bot_token = os.getenv('TG_BOT_TOKEN', '')
+        self.telegram_chat_id = os.getenv('TG_CHAT_ID', '')
         
         if not self.email or not self.password:
             raise ValueError("邮箱和密码不能为空")
