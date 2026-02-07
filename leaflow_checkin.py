@@ -291,10 +291,13 @@ class LeaflowAutoCheckin:
             try:
                 # 检查页面是否包含签到相关元素
                 checkin_indicators = [
-                    "button.checkin-btn",  # 优先使用这个选择器
-                    "//button[contains(text(), '立即签到')]",
-                    "//*[contains(text(), '每日签到')]",
-                    "//*[contains(text(), '签到')]"
+                    "button.checkin-btn",  # 最精确的选择器 - 通过类名匹配
+                    "button[name='checkin']",  # 通过name属性匹配
+                    "//button[contains(@class, 'checkin-btn')]",  # XPath版本
+                    "//button[contains(text(), '立即签到')]",  # 文本内容匹配
+                    "//button[.//i[contains(@class, 'bi-pencil-square')]]",  # 图标匹配
+                    "//button[contains(text(), '签到')]",  # 更宽松的文本匹配
+                    "//*[contains(text(), '每日签到')]",  # 非按钮元素匹配
                 ]
                 
                 for indicator in checkin_indicators:
