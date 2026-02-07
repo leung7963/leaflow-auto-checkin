@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class LeaflowAutoCheckin:
     # 配置class类常量
     LOGIN_URL = "https://leaflow.net/login"
-    CHECKIN_URL = "https://checkin.leaflow.net"
+    CHECKIN_URL = "https://checkin.leaflow.net/index.php"
     WAIT_TIME_AFTER_LOGIN = 15  # 登录后等待的秒数
     WAIT_TIME_AFTER_CHECKIN_CLICK = 5  # 点击签到后等待的秒数
     RETRY_WAIT_TIME_PAGE_LOAD = 15 # 签到页面加载每次重试等待时间
