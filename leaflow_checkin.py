@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Leaflow 自动签到脚本 - 带重试功能版本
-支持单账号和多账号签到，每次失败会自动重试
+Leaflow 自动签到脚本
+支持单账号和多账号签到
 """
 
 import os
@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 class LeaflowAutoCheckin:
     # 配置class类常量
     LOGIN_URL = "https://leaflow.net/login"
-    CHECKIN_URL = "https://checkin.leaflow.net/index.php"
+    CHECKIN_URL = "https://checkin.leaflow.net"
     WAIT_TIME_AFTER_LOGIN = 15  # 登录后等待的秒数
     WAIT_TIME_AFTER_CHECKIN_CLICK = 5  # 点击签到后等待的秒数
     RETRY_WAIT_TIME_PAGE_LOAD = 15 # 签到页面加载每次重试等待时间
     RETRY_COUNT_PAGE_LOAD = 3 # 签到页面加载重试次数
-    
+
     def __init__(self, email, password):
         self.email = email
         self.password = password
@@ -297,7 +297,7 @@ class LeaflowAutoCheckin:
                     "//button[contains(text(), '立即签到')]",  # 文本内容匹配
                     "//button[.//i[contains(@class, 'bi-pencil-square')]]",  # 图标匹配
                     "//button[contains(text(), '签到')]",  # 更宽松的文本匹配
-                    "//*[contains(text(), '每日签到')]",  # 非按钮元素匹配
+                    "//*[contains(text(), '每日签到')]"  # 非按钮元素匹配
                 ]
                 
                 for indicator in checkin_indicators:
@@ -423,47 +423,31 @@ class LeaflowAutoCheckin:
         except Exception as e:
             return f"❌ 获取签到结果时出错: {str(e)}"
     
-    def run_with_retry(self, max_retries=3, retry_delay=10):
-        """执行流程，支持失败重试"""
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"⏳ 开始处理账号 (第 {attempt}/{max_retries} 次尝试)")
+    def run(self):
+        """单个账号执行流程"""
+        try:
+            logger.info(f"⏳ 开始处理账号")
+            
+            # 登录
+            if self.login():
+                # 签到
+                result = self.checkin()
+                logger.info(f"📋 签到结果: {result}")
+                # 获取余额
+                balance = self.get_balance()
+                logger.info(f"📋 签到结果: {result}, 💰 余额: {balance}")
+                return True, result, balance
+            else:
+                raise Exception("❌ 登录失败")
                 
-                # 确保driver已正确初始化
-                if self.driver:
-                    self.driver.quit()
-                    time.sleep(2)
-                
-                self.setup_driver()
-                
-                # 登录
-                if self.login():
-                    # 签到
-                    result = self.checkin()
-                    logger.info(f"📋 签到结果: {result}")
-                    # 获取余额
-                    balance = self.get_balance()
-                    logger.info(f"📋 签到结果: {result}, 💰 余额: {balance}")
-                    return True, result, balance
-                else:
-                    raise Exception("❌ 登录失败")
-                    
-            except Exception as e:
-                error_msg = f"❌ 第 {attempt} 次尝试失败: {str(e)}"
-                logger.error(error_msg)
-                
-                # 如果不是最后一次尝试，则等待后重试
-                if attempt < max_retries:
-                    logger.info(f"⏳ 等待 {retry_delay} 秒后重试...")
-                    time.sleep(retry_delay)
-                else:
-                    logger.error(f"❌ 已达到最大重试次数 ({max_retries} 次)，放弃重试")
-                    return False, error_msg, "未知"
-            finally:
-                if self.driver:
-                    self.driver.quit()
+        except Exception as e:
+            error_msg = f"❌ 自动签到失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg, "未知"
         
-        return False, "❌ 重试循环异常结束", "未知"
+        finally:
+            if self.driver:
+                self.driver.quit()
 
 class MultiAccountManager:
     """多账号管理器 - 简化配置版本"""
@@ -471,8 +455,6 @@ class MultiAccountManager:
     def __init__(self):
         self.telegram_bot_token = os.getenv('TG_BOT_TOKEN', '')
         self.telegram_chat_id = os.getenv('TG_CHAT_ID', '')
-        self.max_retries_per_account = int(os.getenv('MAX_RETRIES', '3'))  # 从环境变量读取重试次数
-        self.retry_delay = int(os.getenv('RETRY_DELAY', '10'))  # 重试间隔时间（秒）
         self.accounts = self.load_accounts()
     
     def load_accounts(self):
@@ -544,24 +526,22 @@ class MultiAccountManager:
         
         try:
             SUCCESS_MSG = "今日已签到"
-            script_success_count = sum(1 for _, success, result, _, _ in results if success and result != SUCCESS_MSG)  # 脚本签到的账号数量
-            already_checked_count = sum(1 for _, _, result, _, _ in results if result == SUCCESS_MSG)  # 手动签到的账号数量
-            failure_count = sum(1 for _, success, _, _, _ in results if not success)  # 签到失败的账号数量
+            script_success_count = sum(1 for _, success, result, _ in results if success and result != SUCCESS_MSG)  # 脚本签到的账号数量
+            already_checked_count = sum(1 for _, _, result, _ in results if result == SUCCESS_MSG)  # 手动签到的账号数量
+            failure_count = sum(1 for _, success, _, _ in results if not success)  # 签到失败的账号数量
             total_success_count = already_checked_count + script_success_count  # 签到成功的账号数量 (含已手动签到)
             total_count = len(results)  # 账号总数量
-            total_attempts = sum(attempts for _, _, _, _, attempts in results)  # 总尝试次数
 
             message = f"🎁 <strong>Leaflow自动签到通知</strong>\n"
             message += f"=========================\n"
-            message += f"📋 共处理账号: {total_count} 个\n"
-            message += f"🔄 总尝试次数: {total_attempts} 次\n"
+            message += f"📋 共处理账号: {total_count} 个，其中：\n"
             message += f"👏 手动签到: {already_checked_count} 个\n"
             message += f"🚀 脚本签到: {script_success_count} 个\n"
             message += f"✅ 签到成功: {total_success_count} 个\n"
             message += f"❌ 签到失败: {failure_count} 个\n"
             message += f"=========================\n"
          
-            for index, (email, success, result, balance, attempts) in enumerate(results):
+            for index, (email, success, result, balance) in enumerate(results):
                 if success and result != SUCCESS_MSG:
                     status = "✅" # 脚本签到
                 elif result == SUCCESS_MSG:
@@ -571,7 +551,6 @@ class MultiAccountManager:
                 
                 # 签到详情消息
                 message += f"<strong>账号:</strong> <code>{email}</code>\n"
-                message += f"🔄 尝试次数: {attempts}\n"
                 message += f"{status} {result}\n💰 当前余额：{balance}\n"
                 if index < total_count - 1:
                     message += f"-------------------------------\n"
@@ -595,7 +574,6 @@ class MultiAccountManager:
     def run_all(self):
         """运行所有账号的签到流程"""
         logger.info(f"👉 开始执行 {len(self.accounts)} 个账号的签到任务")
-        logger.info(f"👉 每个账号最多重试 {self.max_retries_per_account} 次")
         
         results = []
         
@@ -604,11 +582,8 @@ class MultiAccountManager:
             
             try:
                 auto_checkin = LeaflowAutoCheckin(account['email'], account['password'])
-                success, result, balance = auto_checkin.run_with_retry(
-                    max_retries=self.max_retries_per_account,
-                    retry_delay=self.retry_delay
-                )
-                results.append((account['email'], success, result, balance, self.max_retries_per_account))
+                success, result, balance = auto_checkin.run()
+                results.append((account['email'], success, result, balance))
                 
                 # 在账号之间添加间隔，避免请求过于频繁
                 if i < len(self.accounts):
@@ -619,13 +594,13 @@ class MultiAccountManager:
             except Exception as e:
                 error_msg = f"❌ 处理账号时发生异常: {str(e)}"
                 logger.error(error_msg)
-                results.append((account['email'], False, error_msg, "未知", self.max_retries_per_account))
+                results.append((account['email'], False, error_msg, "未知"))
         
         # 发送汇总通知
         self.send_notification(results)
         
         # 返回总体结果
-        success_count = sum(1 for _, success, _, _, _ in results if success)
+        success_count = sum(1 for _, success, _, _ in results if success)
         return success_count == len(self.accounts), results
 
 def main():
@@ -633,7 +608,7 @@ def main():
     try:
         manager = MultiAccountManager()
         overall_success, detailed_results = manager.run_all()
-        success_count = sum(1 for _, success, _, _, _ in detailed_results if success)
+        success_count = sum(1 for _, success, _, _ in detailed_results if success)
         
         if overall_success:
             logger.info("✅ 所有账号签到成功")
