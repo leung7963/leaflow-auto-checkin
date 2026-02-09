@@ -26,7 +26,7 @@ class LeaflowAutoCheckin:
     LOGIN_URL = "https://leaflow.net/login"
     CHECKIN_URL = "https://checkin.leaflow.net"
     WAIT_TIME_AFTER_LOGIN = 15  # 登录后等待的秒数
-    WAIT_TIME_AFTER_CHECKIN_CLICK = 5  # 点击签到后等待的秒数
+    WAIT_TIME_AFTER_CHECKIN_CLICK = 10  # 点击签到后等待的秒数
     RETRY_WAIT_TIME_PAGE_LOAD = 15 # 签到页面加载每次重试等待时间
     RETRY_COUNT_PAGE_LOAD = 3 # 签到页面加载重试次数
 
